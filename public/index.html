@@ -270,7 +270,10 @@
         <div style="padding: 16px; text-align: center;">
           <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">Copy the final combined HTML for all approved blocks.</p>
           <button class="btn" style="width: 100%; margin-bottom: 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);" onclick="previewMasterHtml()">Preview Full Newsletter</button>
-          <button class="btn btn-success" style="width: 100%;" onclick="copyMasterHtml()">Copy All HTML</button>
+          <button class="btn btn-success" style="width: 100%; margin-bottom: 10px;" onclick="copyMasterHtml()">Copy All HTML</button>
+          <button class="btn" style="width: 100%; background: linear-gradient(135deg, #6366f1, #22d3ee); border: none;" onclick="openCCExport()">
+            📋 Export for Constant Contact
+          </button>
         </div>
       </div>
     </div>
@@ -282,6 +285,41 @@
   <div style="background: white; max-width: 800px; margin: 0 auto; padding: 32px; border-radius: 8px; position: relative;">
     <button onclick="document.getElementById('masterPreviewModal').style.display='none'" style="position: absolute; top: 16px; right: 16px; background: var(--danger); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: inherit;">Close</button>
     <div id="masterPreviewContent" style="color: black;"></div>
+  </div>
+</div>
+
+<!-- Modal for Constant Contact Export -->
+<div id="ccExportModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; padding: 30px; overflow-y: auto;">
+  <div style="background: var(--surface); max-width: 700px; margin: 0 auto; border-radius: 12px; border: 1px solid var(--border); overflow: hidden;">
+    <div style="background: linear-gradient(135deg, #6366f1, #22d3ee); padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;">
+      <div>
+        <h2 style="color: white; font-size: 18px; margin: 0;">Export for Constant Contact</h2>
+        <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 4px 0 0 0;">Copy each listing's image and text into your drag-and-drop email</p>
+      </div>
+      <button onclick="document.getElementById('ccExportModal').style.display='none'" style="background: rgba(255,255,255,0.2); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: 600;">✕ Close</button>
+    </div>
+
+    <div style="padding: 20px 24px; background: var(--surface-2); border-bottom: 1px solid var(--border);">
+      <p style="color: var(--text); font-size: 14px; font-weight: 600; margin: 0 0 10px 0;">How to add each listing in Constant Contact:</p>
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 1; background: var(--bg); border-radius: 8px; padding: 12px; border: 1px solid var(--border);">
+          <span style="display: inline-block; background: var(--accent); color: white; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; font-weight: 700; margin-bottom: 6px;">1</span>
+          <p style="color: var(--text-dim); font-size: 12px; margin: 0; line-height: 1.4;"><strong style="color: var(--accent-2);">Download</strong> the image below, upload it to your CC <strong style="color: var(--text);">Image Library</strong>, then drag an <strong style="color: var(--text);">Image block</strong> into your email</p>
+        </div>
+        <div style="flex: 1; background: var(--bg); border-radius: 8px; padding: 12px; border: 1px solid var(--border);">
+          <span style="display: inline-block; background: var(--accent); color: white; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; font-weight: 700; margin-bottom: 6px;">2</span>
+          <p style="color: var(--text-dim); font-size: 12px; margin: 0; line-height: 1.4;">Drag a <strong style="color: var(--text);">Text block</strong> below it and paste the <strong style="color: var(--accent-2);">Listing Text</strong></p>
+        </div>
+        <div style="flex: 1; background: var(--bg); border-radius: 8px; padding: 12px; border: 1px solid var(--border);">
+          <span style="display: inline-block; background: var(--accent); color: white; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; font-size: 12px; font-weight: 700; margin-bottom: 6px;">3</span>
+          <p style="color: var(--text-dim); font-size: 12px; margin: 0; line-height: 1.4;">Add a <strong style="color: var(--text);">Divider block</strong> between listings, then repeat for the next one</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="ccExportListings" style="padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; max-height: 60vh; overflow-y: auto;">
+      <!-- Listings cards rendered by JS -->
+    </div>
   </div>
 </div>
 
@@ -472,6 +510,228 @@
     }).catch(err => {
       alert('Failed to copy: ' + err);
     });
+  }
+
+  /**
+   * Open the Constant Contact export modal — shows each listing as a card
+   * with separate "Copy Image URL" and "Copy Text" buttons that work with
+   * CC's drag-and-drop editor (Image blocks + Text blocks).
+   */
+  function openCCExport() {
+    const approvedItems = queue.filter(q => q.status === 'approved');
+    const items = approvedItems.length > 0 ? approvedItems : queue;
+
+    if (items.length === 0) {
+      alert('No items in the queue to export.');
+      return;
+    }
+
+    const container = document.getElementById('ccExportListings');
+    container.innerHTML = '';
+
+    items.forEach((item, idx) => {
+      const data = item.data;
+      if (!data) return;
+
+      const l = data.listing;
+      const imageUrl = item.imageUrl || data.mainImageUrl || '';
+      const city = l.city || '';
+      const state = l.state || '';
+      const propType = l.propertytype || 'Home';
+      const beds = l.beds || 0;
+      const baths = Math.floor(l.baths) === l.baths ? l.baths : l.baths.toFixed(1);
+      const sleeps = l.tenants || 0;
+      const desc = (l.amenities_desc || '').replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
+      // Build rich formatted HTML matching the newsletter style (Georgia, 16pt, centered)
+      // This gets rendered in the DOM and copied as rich text so CC's text block preserves formatting
+      let richTextHtml = `<div style="font-family: Georgia, 'Times New Roman', Times, serif; font-size: 16px; color: #000000; text-align: center; max-width: 600px; margin: 0 auto;">`;
+
+      // City, State header
+      richTextHtml += `<div style="text-align: center; font-size: 16px; margin-bottom: 10px;">`;
+      richTextHtml += `<strong><u>${city}, ${state}</u></strong><br>`;
+      richTextHtml += `Property Type: ${propType}<br>`;
+      richTextHtml += `${beds}BR ${baths}BA Sleeps: ${sleeps}`;
+      richTextHtml += `</div>`;
+
+      // Listing ID
+      richTextHtml += `<div style="text-align: center; font-size: 14px; margin-bottom: 15px;">`;
+      richTextHtml += `Listing ID: ${l.id}`;
+      richTextHtml += `</div>`;
+
+      // Description
+      let cleanDesc = desc;
+      if (cleanDesc.length > 700) {
+        let truncated = cleanDesc.substring(0, 700);
+        const lastSpace = truncated.lastIndexOf(' ');
+        if (lastSpace > 0) truncated = truncated.substring(0, lastSpace);
+        cleanDesc = truncated + '...';
+      }
+      richTextHtml += `<div style="font-size: 14px; line-height: 1.5; text-align: center; padding: 0 10px;">`;
+      richTextHtml += cleanDesc;
+      richTextHtml += `</div>`;
+
+      // Rates
+      const rates = data.rates || [];
+      let displayPrice = l.price;
+      let priceNum = parseFloat(displayPrice);
+      if (!displayPrice || displayPrice === '0' || displayPrice === 0 || (priceNum && priceNum > 4000)) {
+        displayPrice = null;
+        let validRates = rates.map(r => parseFloat(r.monthly)).filter(m => m && !isNaN(m) && m > 0);
+        if (validRates.length > 0) {
+          let minRate = Math.min(...validRates);
+          let maxRate = Math.max(...validRates);
+          displayPrice = minRate === maxRate ? minRate : `${minRate} - $${maxRate}`;
+        }
+      }
+      richTextHtml += `<div style="text-align: center; font-size: 16px; margin-top: 15px;">`;
+      if (displayPrice) {
+        let priceStr = displayPrice.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        richTextHtml += `<strong><u><span style="background-color: #a2d2db; padding: 2px 5px;">$${priceStr}/mo</span></u></strong><br>`;
+        richTextHtml += `<em style="font-size: 14px;">(Rental Rates only - does not include taxes &amp; fees)</em>`;
+      } else {
+        richTextHtml += `<strong><em><span style="background-color: #a2d2db; padding: 2px 5px;">No Rates Displayed</span></em></strong><br>`;
+        richTextHtml += `<em style="font-size: 14px;">Please contact the Owner/Manager for Rate Information</em>`;
+      }
+      richTextHtml += `</div>`;
+
+      // Calendar availability
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      let yearMap = {};
+      if (rates.length > 0) {
+        rates.forEach(r => {
+          if (!r.year || !r.month) return;
+          const mName = months[parseInt(r.month, 10) - 1];
+          if (!yearMap[r.year]) yearMap[r.year] = new Set();
+          yearMap[r.year].add(mName);
+        });
+      } else {
+        const currentMonthIdx = new Date().getMonth();
+        const currentYear = new Date().getFullYear();
+        months.forEach((m, mIdx) => {
+          if (l[m] && l[m] !== null && l[m] !== '') {
+            const yr = (mIdx >= currentMonthIdx) ? currentYear : currentYear + 1;
+            if (!yearMap[yr]) yearMap[yr] = new Set();
+            yearMap[yr].add(m);
+          }
+        });
+      }
+      if (Object.keys(yearMap).length > 0) {
+        richTextHtml += `<div style="text-align: center; font-size: 14px; margin-top: 15px;">`;
+        richTextHtml += `<u style="font-weight: normal;">Calendar Shows Available</u><br>`;
+        Object.keys(yearMap).sort().forEach(year => {
+          richTextHtml += `${year}: ${Array.from(yearMap[year]).join(', ')}<br>`;
+        });
+        richTextHtml += `</div>`;
+      }
+
+      // Multi-month discounts
+      const discounts = [];
+      for (let i = 2; i <= 6; i++) {
+        if (l['mmdiscount' + i] && parseInt(l['mmdiscount' + i]) > 0) {
+          discounts.push(`${i} Months: $${l['mmdiscount' + i]}/Month`);
+        }
+      }
+      if (discounts.length > 0) {
+        richTextHtml += `<div style="text-align: center; font-size: 14px; margin-top: 15px;">`;
+        richTextHtml += `<strong style="text-decoration: underline;">MULTI-MONTH Discounts!</strong><br>`;
+        discounts.forEach(d => { richTextHtml += `${d}<br>`; });
+        richTextHtml += `</div>`;
+      }
+
+      richTextHtml += `</div>`;
+
+      const card = document.createElement('div');
+      card.style.cssText = 'background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;';
+
+      card.innerHTML = `
+        <div style="display: flex; gap: 16px; padding: 16px;">
+          <div style="flex-shrink: 0; width: 120px;">
+            ${imageUrl ? `<img src="${imageUrl}" style="width: 120px; height: 90px; object-fit: cover; border-radius: 6px; display: block;" />` : '<div style="width: 120px; height: 90px; background: #333; border-radius: 6px;"></div>'}
+          </div>
+          <div style="flex: 1; min-width: 0;">
+            <h3 style="font-size: 15px; font-weight: 600; margin: 0 0 4px 0; color: var(--text);">${city}, ${state}</h3>
+            <p style="font-size: 12px; color: var(--text-dim); margin: 0 0 2px 0;">${propType} · ${beds}BR ${baths}BA · Sleeps: ${sleeps}</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin: 0;">ID: ${l.id}</p>
+          </div>
+          <div style="font-size: 13px; font-weight: 700; color: var(--accent-2); flex-shrink: 0; text-align: right;">
+            Listing ${idx + 1} of ${items.length}
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; padding: 0 16px 8px 16px;">
+          <button class="btn" onclick="ccCopy(this, '${imageUrl.replace(/'/g, "\\'")}')"
+            style="flex: 1; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-size: 12px; padding: 8px;">
+            📷 Copy Image URL
+          </button>
+          <button class="btn" onclick="ccCopyText(this, ${idx})"
+            style="flex: 1; background: var(--accent); font-size: 12px; padding: 8px;">
+            📝 Copy Listing Text
+          </button>
+        </div>
+        ${imageUrl ? `
+        <div style="padding: 0 16px 16px 16px;">
+          <a href="/api/newsletter/download-image/${l.id}?url=${encodeURIComponent(imageUrl)}"
+            class="btn" download
+            style="display: block; text-align: center; width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-size: 12px; padding: 8px; text-decoration: none;">
+            ⬇️ Download Image (for CC Upload)
+          </a>
+        </div>
+        ` : ''}
+      `;
+
+      // Store the rich HTML on the card for copy
+      card.dataset.richHtml = richTextHtml;
+      container.appendChild(card);
+    });
+
+    document.getElementById('ccExportModal').style.display = 'block';
+  }
+
+  // Copy plain text (image URL)
+  function ccCopy(btn, text) {
+    navigator.clipboard.writeText(text).then(() => {
+      const orig = btn.innerHTML;
+      btn.innerHTML = '✅ Copied!';
+      btn.style.background = 'var(--success)';
+      btn.style.color = '#fff';
+      btn.style.borderColor = 'var(--success)';
+      setTimeout(() => {
+        btn.innerHTML = orig;
+        btn.style.background = 'var(--surface-2)';
+        btn.style.color = 'var(--text)';
+        btn.style.borderColor = 'var(--border)';
+      }, 1500);
+    });
+  }
+
+  // Copy rich formatted text by rendering HTML and using DOM selection
+  function ccCopyText(btn, idx) {
+    const cards = document.querySelectorAll('#ccExportListings > div');
+    const richHtml = cards[idx]?.dataset.richHtml || '';
+
+    // Create an offscreen staging div with the rendered rich text
+    const stage = document.createElement('div');
+    stage.style.cssText = 'position:fixed; left:-9999px; top:0; width:600px; background:white; z-index:-1;';
+    stage.innerHTML = richHtml;
+    document.body.appendChild(stage);
+
+    // Select and copy the rendered content — CC's text block preserves this formatting
+    const range = document.createRange();
+    range.selectNodeContents(stage);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+    document.body.removeChild(stage);
+
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✅ Copied!';
+    btn.style.background = 'var(--success)';
+    setTimeout(() => {
+      btn.innerHTML = orig;
+      btn.style.background = 'var(--accent)';
+    }, 1500);
   }
 
   // ── Formatter Logic ───────────────────────────────────────────────────────────

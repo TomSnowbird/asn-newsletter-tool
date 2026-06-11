@@ -109,4 +109,42 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// ─── Image Download Proxy ─────────────────────────────────────────────────────
+// Fetches images from americansnowbird.com server-side so the browser can
+// download them without CORS restrictions. Team uploads these to CC's library.
+
+router.get('/download-image/:listingId', async (req, res) => {
+  const imageUrl = req.query.url;
+  if (!imageUrl) {
+    return res.status(400).json({ error: 'Missing ?url= parameter' });
+  }
+
+  try {
+    const imgRes = await fetch(imageUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ASN-Newsletter-Tool/1.0)' },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!imgRes.ok) throw new Error(`Image returned HTTP ${imgRes.status}`);
+
+    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+
+    // Name the file by listing ID so it's easy to match photos to listings
+    const listingId = req.params.listingId || 'listing';
+    const urlPath = new URL(imageUrl).pathname;
+    const ext = urlPath.includes('.') ? '.' + urlPath.split('.').pop() : '.jpg';
+    const filename = `${listingId}${ext}`;
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Pipe the image stream directly to the response
+    const buffer = Buffer.from(await imgRes.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error(`[Download] Failed to fetch image:`, err.message);
+    res.status(500).json({ error: `Could not download image: ${err.message}` });
+  }
+});
+
 export default router;
