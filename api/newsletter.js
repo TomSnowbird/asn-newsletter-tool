@@ -97,7 +97,8 @@ function parseListing(id, html) {
 
 export default async function handler(req, res) {
   // Extract listing ID from the URL: /api/newsletter/12345
-  const parts = req.url.split('/').filter(Boolean);
+  // Drop the query string Vercel's rewrite appends (?path=12345)
+  const parts = req.url.split('?')[0].split('/').filter(Boolean);
   const id = parts[parts.length - 1];
 
   if (!id || id === 'newsletter') {
