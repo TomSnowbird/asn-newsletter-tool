@@ -6,8 +6,11 @@ function stripHtml(str) {
 
 async function fetchListingPage(id) {
   const url = `https://www.americansnowbird.com/listings/view/id/${id}`;
+  const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; ASN-Newsletter-Tool/1.0)' };
+  // Lets the tool past the Cloudflare rule that challenges cloud-hosted traffic
+  if (process.env.ASN_TOOL_KEY) headers['X-ASN-Tool-Key'] = process.env.ASN_TOOL_KEY;
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ASN-Newsletter-Tool/1.0)' },
+    headers,
     signal: AbortSignal.timeout(8000) // 8s timeout — safe under Vercel's 10s limit
   });
   if (!res.ok) throw new Error(`Listing page returned HTTP ${res.status}`);
