@@ -24,13 +24,15 @@ function parseListing(id, html) {
   if (cityLinkMatch) city = decodeURIComponent(cityLinkMatch[1].replace(/\+/g, ' '));
 
   // ── State ─────────────────────────────────────────────────────────────────────
+  // The meta description is sitewide boilerplate, so read "City, State" from
+  // the listing's map marker data instead
   let state = '';
-  const metaDescMatch = html.match(/name="description"\s+content="([^"]+)"/i);
-  if (metaDescMatch) {
-    const cityStateMatch = metaDescMatch[1].match(/([A-Za-z\s]+),\s*([A-Za-z\s]+)/);
-    if (cityStateMatch) {
-      if (!state) state = cityStateMatch[2].trim();
-      if (!city)  city  = cityStateMatch[1].trim();
+  const locationMatch = html.match(/clear:both'\/>([^"<]+)"/);
+  if (locationMatch) {
+    const locParts = locationMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+    if (locParts.length >= 2) {
+      state = locParts[locParts.length - 1];
+      if (!city) city = locParts[locParts.length - 2];
     }
   }
 
