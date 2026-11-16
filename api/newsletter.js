@@ -1,3 +1,5 @@
+import { fetchListingImage, ImageError } from './_image.js';
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function stripHtml(str) {
@@ -101,10 +103,16 @@ function parseListing(id, html) {
 // ─── Serverless Handler ───────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
-  // Extract listing ID from the URL: /api/newsletter/12345
+  // Extract the path after /api/newsletter, e.g. /api/newsletter/12345
   // Drop the query string Vercel's rewrite appends (?path=12345)
   const parts = req.url.split('?')[0].split('/').filter(Boolean);
   const id = parts[parts.length - 1];
+
+  // Image download: /api/newsletter/download-image/{listingId}?url={imageUrl}
+  if (parts.includes('download-image')) {
+    const listingId = id === 'download-image' ? '' : id;
+    return downloadImage(req, res, listingId);
+  }
 
   if (!id || id === 'newsletter') {
     return res.status(400).json({ error: 'Missing listing ID. Use /api/newsletter/{id}' });
@@ -118,5 +126,23 @@ export default async function handler(req, res) {
     console.error(`[Newsletter] Failed to fetch listing ${id}:`, err.message);
     const status = err.name === 'TimeoutError' ? 504 : 404;
     return res.status(status).json({ error: `Could not load listing ${id}: ${err.message}` });
+  }
+}
+
+// Sends a listing photo back as a file download (the team uploads it to Constant Contact)
+async function downloadImage(req, res, listingId) {
+  const imageUrl = Array.isArray(req.query?.url) ? req.query.url[0] : req.query?.url;
+  if (!imageUrl) return res.status(400).json({ error: 'Missing ?url= parameter' });
+
+  try {
+    const { buffer, contentType, filename } = await fetchListingImage(imageUrl, listingId);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(200).send(buffer);
+  } catch (err) {
+    console.error(`[Download] Failed to fetch image for listing ${listingId}:`, err.message);
+    const status = err instanceof ImageError ? err.status : err.name === 'TimeoutError' ? 504 : 500;
+    return res.status(status).json({ error: `Could not download image: ${err.message}` });
   }
 }

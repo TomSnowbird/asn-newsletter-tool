@@ -1,4 +1,5 @@
 import express from 'express';
+import { fetchListingImage, ImageError } from '../../api/_image.js';
 
 const router = express.Router();
 
@@ -122,30 +123,14 @@ router.get('/download-image/:listingId', async (req, res) => {
   }
 
   try {
-    const imgRes = await fetch(imageUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; ASN-Newsletter-Tool/1.0)' },
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!imgRes.ok) throw new Error(`Image returned HTTP ${imgRes.status}`);
-
-    const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
-
-    // Name the file by listing ID so it's easy to match photos to listings
-    const listingId = req.params.listingId || 'listing';
-    const urlPath = new URL(imageUrl).pathname;
-    const ext = urlPath.includes('.') ? '.' + urlPath.split('.').pop() : '.jpg';
-    const filename = `${listingId}${ext}`;
-
+    const { buffer, contentType, filename } = await fetchListingImage(imageUrl, req.params.listingId);
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-    // Pipe the image stream directly to the response
-    const buffer = Buffer.from(await imgRes.arrayBuffer());
     res.send(buffer);
   } catch (err) {
     console.error(`[Download] Failed to fetch image:`, err.message);
-    res.status(500).json({ error: `Could not download image: ${err.message}` });
+    const status = err instanceof ImageError ? err.status : 500;
+    res.status(status).json({ error: `Could not download image: ${err.message}` });
   }
 });
 
